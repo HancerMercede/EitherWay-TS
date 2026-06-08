@@ -186,18 +186,35 @@ Either.left("err")
 
 ---
 
-### `ensure(predicate, errorFn)`
+### `ensure(predicate, error)`
 
-Validate the Right value. If the predicate fails, turns into a Left with the error from `errorFn`.
+Validate the Right value. If the predicate fails, turns into a Left with the given error.
 
 ```ts
 Either.right(150)
-  .ensure(n => n < 100, () => "too large")
+  .ensure(n => n < 100, "too large")
 // Left("too large")
 
 Either.right(50)
-  .ensure(n => n < 100, () => "too large")
+  .ensure(n => n < 100, "too large")
 // Right(50) — passes
+```
+
+---
+
+### `ensure(predicate, errorFn)`
+
+Validate the Right value with a lazy error factory. Accepts either `() => T` (no params) or `(r: R) => T` (receives the Right value).
+
+```ts
+// Simple factory
+Either.right(150)
+  .ensure(n => n < 100, () => "too large")
+
+// Factory that uses the value
+Either.right(-5)
+  .ensure(x => x > 0, x => `value ${x} is invalid`)
+// Left("value -5 is invalid")
 ```
 
 ---
@@ -250,7 +267,7 @@ EitherAsync.left("err")  // async Left
 
 ### `EitherAsync.try(fn)`
 
-Wraps an **async** function that might throw.
+Wraps an **async** function that might throw. Returns `EitherAsync<unknown, T>`. The raw exception becomes the Left — use `.mapLeft` to project it.
 
 ```ts
 const result = await EitherAsync
@@ -260,6 +277,30 @@ const result = await EitherAsync
     return res.json()
   })
   .mapLeft(err => `Failed: ${(err as Error).message}`)
+  .run()
+```
+
+### `EitherAsync.try(fn, error)` — direct error value
+
+Catches exceptions and uses your error value directly as the Left. The exception is discarded.
+
+```ts
+const result = await EitherAsync
+  .try(() => fetch("/api/users").then(r => r.json()), "Network error")
+  .ensure(u => Array.isArray(u), "Invalid response")
+  .run()
+```
+
+### `EitherAsync.try(fn, handler)` — with error handler
+
+Catches exceptions and maps them through a handler function. The handler receives the raw `unknown` error.
+
+```ts
+const result = await EitherAsync
+  .try(
+    () => fetch("/api/users").then(r => r.json()),
+    err => `Request failed: ${(err as Error).message}`,
+  )
   .run()
 ```
 
@@ -301,7 +342,7 @@ const value = await pipeline.getOrThrow()  // throws if Left
 const final = await getUser(id)
   .flatMap(user => saveAuditLog(user))
   .tap(saved => console.log("Saved:", saved.id))
-  .ensure((u): u is User => u.active, () => "Inactive user")
+  .ensure((u): u is User => u.active, "Inactive user")
   .fold(
     err => ({ status: "error", message: err }),
     user => ({ status: "ok", user }),

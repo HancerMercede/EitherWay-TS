@@ -134,10 +134,13 @@ export class EitherAsync<L, R> {
    * )
    * ```
    */
-  ensure<T>(predicate: (r: R) => boolean, errorFn: () => T): EitherAsync<L | T, R> {
+  ensure<T>(predicate: (r: R) => boolean, error: T): EitherAsync<L | T, R>
+  ensure<T>(predicate: (r: R) => boolean, errorFn: (r: R) => T): EitherAsync<L | T, R>
+  ensure<T>(predicate: (r: R) => boolean, errorFn: () => T): EitherAsync<L | T, R>
+  ensure<T>(predicate: (r: R) => boolean, errorOrFn: T | ((r: R) => T) | (() => T)): EitherAsync<L | T, R> {
     return new EitherAsync<L | T, R>(async () => {
       const value = await this.promiseValue()
-      return value.ensure(predicate, errorFn)
+      return value.ensure(predicate, errorOrFn as any)
     })
   }
 
@@ -243,13 +246,25 @@ export class EitherAsync<L, R> {
    *   .run()
    * ```
    */
-  static try<T>(fn: () => Promise<T>): EitherAsync<unknown, T> {
-    return new EitherAsync<unknown, T>(async () => {
+  static try<T>(fn: () => Promise<T>): EitherAsync<unknown, T>
+  static try<T, E>(fn: () => Promise<T>, error: E): EitherAsync<E, T>
+  static try<T, E>(fn: () => Promise<T>, handler: (error: unknown) => E): EitherAsync<E, T>
+  static try<T, E>(
+    fn: () => Promise<T>,
+    errorOrHandler?: E | ((error: unknown) => E),
+  ): EitherAsync<unknown | E, T> {
+    return new EitherAsync<unknown | E, T>(async () => {
       try {
         const value = await fn()
         return Either.right(value)
       } catch (err) {
-        return Either.left(err)
+        if (errorOrHandler === undefined) {
+          return Either.left(err)
+        }
+        if (typeof errorOrHandler === "function") {
+          return Either.left((errorOrHandler as (error: unknown) => E)(err))
+        }
+        return Either.left(errorOrHandler)
       }
     })
   }

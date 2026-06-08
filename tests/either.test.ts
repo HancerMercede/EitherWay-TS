@@ -234,6 +234,18 @@ describe("ensure", () => {
     expect(result.isLeft()).toBe(true)
     result.fold(err => expect(err).toBe("err"), () => expect.fail())
   })
+
+  it("fails with direct error value", () => {
+    const result = Either.right(150).ensure(n => n < 100, "too large" as const)
+    expect(result.isLeft()).toBe(true)
+    result.fold(err => expect(err).toBe("too large"), () => expect.fail())
+  })
+
+  it("fails with value-dependent error factory", () => {
+    const result = Either.right(150).ensure(n => n < 100, n => `${n} is too large`)
+    expect(result.isLeft()).toBe(true)
+    result.fold(err => expect(err).toBe("150 is too large"), () => expect.fail())
+  })
 })
 
 // ---- getOrElse ----

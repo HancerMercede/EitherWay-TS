@@ -43,7 +43,10 @@ export class Left<L, R> {
     return this
   }
 
-  ensure<T>(_predicate: (r: R) => boolean, _errorFn: () => T): Either<L | T, R> {
+  ensure<T>(predicate: (r: R) => boolean, error: T): Either<L | T, R>
+  ensure<T>(predicate: (r: R) => boolean, errorFn: (r: R) => T): Either<L | T, R>
+  ensure<T>(predicate: (r: R) => boolean, errorFn: () => T): Either<L | T, R>
+  ensure<T>(_predicate: (r: R) => boolean, _errorOrFn: T | ((r: R) => T) | (() => T)): Either<L | T, R> {
     return new Left<L | T, R>(this.value as L | T)
   }
 
@@ -105,10 +108,20 @@ export class Right<L, R> {
     return this
   }
 
-  ensure<T>(predicate: (r: R) => boolean, errorFn: () => T): Either<L | T, R> {
-    return predicate(this.value)
-      ? new Right<L | T, R>(this.value)
-      : new Left<L | T, R>(errorFn())
+  ensure<T>(predicate: (r: R) => boolean, error: T): Either<L | T, R>
+  ensure<T>(predicate: (r: R) => boolean, errorFn: (r: R) => T): Either<L | T, R>
+  ensure<T>(predicate: (r: R) => boolean, errorFn: () => T): Either<L | T, R>
+  ensure<T>(predicate: (r: R) => boolean, errorOrFn: T | ((r: R) => T) | (() => T)): Either<L | T, R> {
+    if (!predicate(this.value)) {
+      if (typeof errorOrFn === "function") {
+        if (errorOrFn.length >= 1) {
+          return new Left<L | T, R>((errorOrFn as (r: R) => T)(this.value))
+        }
+        return new Left<L | T, R>((errorOrFn as () => T)())
+      }
+      return new Left<L | T, R>(errorOrFn as T)
+    }
+    return new Right<L | T, R>(this.value)
   }
 
   getOrElse(_defaultValue: R): R {

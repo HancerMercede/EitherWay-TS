@@ -238,6 +238,17 @@ describe("EitherAsync.ensure", () => {
       () => expect.fail(),
     )
   })
+
+  it("fails with direct error value", async () => {
+    const result = await EitherAsync.right(150)
+      .ensure(n => n < 100, "too large" as const)
+      .run()
+    expect(result.isLeft()).toBe(true)
+    result.fold(
+      err => expect(err).toBe("too large"),
+      () => expect.fail(),
+    )
+  })
 })
 
 // ---- fold ----
@@ -306,6 +317,28 @@ describe("EitherAsync.try", () => {
     expect(result.isLeft()).toBe(true)
     result.fold(
       err => expect(err).toBeInstanceOf(Error),
+      () => expect.fail(),
+    )
+  })
+
+  it("returns Left with direct error value on rejection", async () => {
+    const result = await EitherAsync.try(async () => {
+      throw new Error("nope")
+    }, "custom error").run()
+    expect(result.isLeft()).toBe(true)
+    result.fold(
+      err => expect(err).toBe("custom error"),
+      () => expect.fail(),
+    )
+  })
+
+  it("returns Left with mapped error via handler", async () => {
+    const result = await EitherAsync.try(async () => {
+      throw new Error("nope")
+    }, err => `mapped: ${(err as Error).message}`).run()
+    expect(result.isLeft()).toBe(true)
+    result.fold(
+      err => expect(err).toBe("mapped: nope"),
       () => expect.fail(),
     )
   })
