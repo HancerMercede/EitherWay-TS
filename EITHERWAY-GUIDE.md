@@ -280,6 +280,39 @@ const result = await EitherAsync
   .run()
 ```
 
+### 🚨 Static vs continuation — clave para entender
+
+En TypeScript, **todos** los overloads de `try` son estáticos y **arrancan** pipelines. No hay un `try` de instancia/extensión como en C#.
+
+Para **continuar** un pipeline con una operación que puede fallar, se usa `.flatMap()`:
+
+```ts
+const createUser = (request: CreateUserDto) =>
+  EitherAsync
+    // ⬇️ try estático: arranca, NO recibe valor previo
+    .try(() => repo.getByUsername(request.username))
+    .mapLeft(err => new AppError(err.message))
+    .ensure(user => user === null, new AppError("username already exists"))
+    .map(() => request.project())
+    // ⬇️ flatMap: continúa, SÍ recibe el valor previo
+    .flatMap(async user => {
+      user.passwordHash = hashPassword(request.password)
+      await repo.addUser(user)
+      await repo.commit()
+      return Either.right(user)
+    })
+    .map(user => user.mapTo<UserDto>())
+```
+
+| | `EitherAsync.try(...)` (estático) | `.flatMap(...)` (instancia) |
+|---|---|---|
+| **Rol** | Arrancar un pipeline | Continuar un pipeline |
+| **Recibe valor previo?** | ❌ No | ✅ Sí |
+| **Ataja excepciones?** | ✅ Automáticamente | ❌ No (usá Either.try adentro si es necesario) |
+| **Handler?** | Opcional (según overload) | ❌ No aplica |
+
+**Diferencia con C#:** En C# existe `EitherAsync.Try()` estático (arranca) y `.Try()` extensión (continúa con handler obligatorio). En TypeScript solo tenés el estático, y para continuar usás `.flatMap()`.
+
 ### `map(fn)` — Transform success
 
 ```ts

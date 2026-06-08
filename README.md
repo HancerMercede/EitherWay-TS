@@ -304,6 +304,46 @@ const result = await EitherAsync
   .run()
 ```
 
+### 🚨 Static `Try` — arranca un pipeline
+
+En TypeScript, todos los overloads de `Try` son **estáticos** en `EitherAsync`. Siempre **arrancan** un pipeline desde cero — no reciben un valor previo.
+
+```ts
+// Arranca: no hay valor previo, la exception cruda es el Left
+EitherAsync.try(() => fetch("/api/users"))
+
+// Arranca con error directo (excepción descartada)
+EitherAsync.try(() => fetch("/api/users"), "Network error")
+
+// Arranca con handler
+EitherAsync.try(
+  () => fetch("/api/users"),
+  err => `Request failed: ${(err as Error).message}`,
+)
+```
+
+Para **continuar** un pipeline con una operación que puede fallar, usás `.flatMap()` (no existe un `Try` de extensión en TypeScript):
+
+```ts
+const createUser = (request: CreateUserDto) =>
+  EitherAsync
+    // ⬇️ Try estático: arranca desde cero
+    .try(() => repo.getByUsername(request.username))
+    .mapLeft(err => new AppError(err.message))
+    .ensure(user => user === null, new AppError("username already exists"))
+    // ⬇️ flatMap: continúa, recibe el valor previo
+    .flatMap(async () => {
+      const user = request.project()
+      user.passwordHash = hashPassword(request.password)
+      await repo.addUser(user)
+      await repo.commit()
+      return Either.right(user)
+    })
+    .map(user => user.mapTo<UserDto>())
+```
+
+**Diferencia clave con C#:** En C# existe el `Try` de extensión que recibe el valor anterior y ataja excepciones automáticamente. En TypeScript usás `.flatMap()` que recibe el valor pero **no ataja excepciones** — para eso usás `EitherAsync.try()` al inicio del pipeline y mantenés todo adentro del `flatMap` con un try-catch manual si es necesario, o más simple: confiás en que el `EitherAsync.try()` inicial ya cubre las excepciones del flujo.
+
 ### Composition
 
 All the methods from `Either` are mirrored in `EitherAsync`:
